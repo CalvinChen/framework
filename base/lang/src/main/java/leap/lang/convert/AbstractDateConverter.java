@@ -41,16 +41,19 @@ public abstract class AbstractDateConverter<T> extends AbstractConverter<T> {
 	}
 
 	@Override
-    public boolean convertFrom(Object value, Class<?> targetType, Type genericType, Out<Object> out) throws Throwable {
+    public boolean convertFrom(Object value, Class<?> targetType, Type genericType, Out<Object> out, ConvertContext context) throws Throwable {
 		if(value instanceof Date){
 			out.set(convertFrom(targetType,(Date)value));
 			return true;
 		}else if(value instanceof Calendar){
 			out.set(convertFrom(targetType,(Calendar)value));
 			return true;
-		}else if(value instanceof Long){
-			out.set(convertFrom(targetType,(Long)value));
-			return true;
+		}else if(value instanceof Long) {
+            out.set(convertFrom(targetType, (Long) value));
+            return true;
+        }else if(value instanceof Number) {
+            out.set(convertFrom(targetType,((Number)value).longValue()));
+            return true;
 		}else if(value instanceof CharSequence){
 			String stringValue = value.toString();
 			

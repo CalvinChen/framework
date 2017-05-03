@@ -16,14 +16,13 @@
 package leap.web.api.config;
 
 import leap.lang.*;
-import leap.lang.accessor.MapAttributeAccessor;
 import leap.lang.naming.NamingStyle;
 import leap.lang.path.Paths;
-import leap.web.api.meta.model.MApiResponse;
-import leap.web.api.meta.model.MApiResponseBuilder;
-import leap.web.api.meta.model.MApiPermission;
+import leap.web.api.config.model.ApiModelConfig;
+import leap.web.api.config.model.OAuthConfig;
+import leap.web.api.config.model.RestdConfig;
+import leap.web.api.meta.model.*;
 import leap.web.api.permission.ResourcePermissionsSet;
-import leap.web.api.spec.swagger.SwaggerConstants;
 import leap.web.route.Route;
 
 import java.util.*;
@@ -41,8 +40,9 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     protected String[]       protocols;
     protected String[]       produces;
     protected String[]       consumes;
+    protected boolean        defaultAnonymous            = false;
     protected boolean        corsEnabled                 = true;
-    protected OauthConfig    oauthConfig;
+    protected boolean        uniqueOperationId           = false;
     protected NamingStyle    parameterNamingStyle;
     protected NamingStyle    propertyNamingStyle;
     protected int            maxPageSize                 = MAX_PAGE_SIZE;
@@ -59,6 +59,12 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     protected Map<String, MApiResponse> commonResponses    = new LinkedHashMap<>();
     protected Map<String, MApiResponse> commonResponsesImv = Collections.unmodifiableMap(commonResponses);
 
+    protected Map<Class<?>, ApiModelConfig> modelTypeConfigs    = new LinkedHashMap<>();
+    protected Map<Class<?>, ApiModelConfig> modelTypeConfigsImv = Collections.unmodifiableMap(modelTypeConfigs);
+
+    protected Map<String, MApiModelBuilder> models    = new LinkedHashMap<>();
+    protected Map<String, MApiModelBuilder> modelsImv = Collections.unmodifiableMap(models);
+
     protected Map<String, MApiResponseBuilder> commonResponseBuilders    = new LinkedHashMap<>();
     protected Map<String, MApiResponseBuilder> commonResponseBuildersImv = Collections.unmodifiableMap(commonResponseBuilders);
 
@@ -66,6 +72,9 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     protected Map<Route, Class<?>> resourceTypesImv = Collections.unmodifiableMap(resourceTypes);
 
     protected ResourcePermissionsSet resourcePermissionsSet = new ResourcePermissionsSet();
+
+    protected OAuthConfig    oauthConfig;
+    protected RestdConfig    restdConfig;
 	
 	public DefaultApiConfig(String name, String basePath) {
 		Args.notEmpty(name, "name");
@@ -124,8 +133,19 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     public String[] getConsumes() {
 	    return consumes;
     }
-	
-	public boolean isCorsDisabled() {
+
+    @Override
+    public boolean isDefaultAnonymous() {
+        return defaultAnonymous;
+    }
+
+    @Override
+    public ApiConfigurator setDefaultAnonymous(boolean anonymous) {
+        this.defaultAnonymous = anonymous;
+        return this;
+    }
+
+    public boolean isCorsDisabled() {
 		return !corsEnabled;
 	}
 
@@ -137,6 +157,22 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     @Override
     public Map<String, MApiResponse> getCommonResponses() {
         return commonResponsesImv;
+    }
+
+    @Override
+    public Map<Class<?>, ApiModelConfig> getModelTypes() {
+        return modelTypeConfigs;
+    }
+
+    @Override
+    public Map<String, MApiModelBuilder> getModels() {
+        return modelsImv;
+    }
+
+    @Override
+    public ApiConfigurator addModel(MApiModelBuilder model) {
+        models.put(model.getName(), model);
+        return this;
     }
 
     public NamingStyle getParameterNamingStyle() {
@@ -193,6 +229,12 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     }
 
     @Override
+    public ApiConfigurator putModelType(Class<?> type, ApiModelConfig c) {
+        modelTypeConfigs.put(type, c);
+        return this;
+    }
+
+    @Override
     public ApiConfigurator setProduces(String... produces) {
 		this.produces = null == produces ? Arrays2.EMPTY_STRING_ARRAY : produces;
 	    return this;
@@ -227,7 +269,7 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     }
 
     @Override
-    public ApiConfigurator setOAuthConfig(OauthConfig oauth) {
+    public ApiConfigurator setOAuthConfig(OAuthConfig oauth) {
         this.oauthConfig = oauth;
         return this;
     }
@@ -235,15 +277,15 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     @Override
     public ApiConfigurator enableOAuth() {
         if(oauthConfig == null){
-            oauthConfig = new OauthConfig(true,null,null);
+            oauthConfig = new OAuthConfig(true,null,null);
         }else{
-            oauthConfig.setOauthEnabled(true);
+            oauthConfig.setEnabled(true);
         }
         return this;
     }
 
     @Override
-    public OauthConfig getOauthConfig() {
+    public OAuthConfig getOAuthConfig() {
         return oauthConfig;
     }
 
@@ -332,6 +374,28 @@ public class DefaultApiConfig extends ExtensibleBase implements ApiConfig, ApiCo
     @Override
     public ApiConfigurator setBasePackage(String basePackage) {
         this.basePackage = basePackage;
+        return this;
+    }
+
+    @Override
+    public boolean isUniqueOperationId() {
+        return uniqueOperationId;
+    }
+
+    @Override
+    public ApiConfigurator setUniqueOperationId(boolean uniqueOperationId) {
+        this.uniqueOperationId = uniqueOperationId;
+        return this;
+    }
+
+    @Override
+    public RestdConfig getRestdConfig() {
+        return restdConfig;
+    }
+
+    @Override
+    public ApiConfigurator setRestdConfig(RestdConfig c) {
+        this.restdConfig = c;
         return this;
     }
 }

@@ -73,7 +73,6 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 
     protected Locale                           defaultLocale;
     protected Scheduler                        reloadScheduler;
-    protected int                              reloadInterval      = HtplConstants.DEFAULT_RELOAD_INTERVAL;
     protected List<ReloadableHtplTemplate>     reloadableTemplates = new CopyOnWriteArrayList<>();
     protected Map<String, HtplProcessors>      processorsMap       = new SimpleCaseInsensitiveMap<>();
     protected Map<EscapeType, HtplEscaper>     escapersMap         = new HashMap<>();
@@ -127,10 +126,6 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 		this.reloadScheduler = reloadScheduler;
 	}
 	
-	public void setReloadInterval(int reloadInterval) {
-		this.reloadInterval = reloadInterval;
-	}
-
 	public HtplTemplateSource getTemplateSource() {
 		return templateSource;
 	}
@@ -189,7 +184,8 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
     public boolean resolveAttrProcessor(Element e, Attr a) {
 		String prefix = Strings.trim(a.getPrefix());
 		String name   = a.getLocalName();
-		
+		String originLocalName = a.getOriginLocalName();
+
 		if(Strings.isEmpty(prefix)){
 			/*
 			if(name.startsWith(HtplConstants.HTML5_DATA_PREFIX)){
@@ -200,6 +196,7 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 			prefix = Strings.substringBefore(name, "-");
 			if(!Strings.isEmpty(prefix)){
 				name = name.substring(prefix.length() + 1);
+				originLocalName = originLocalName.substring(prefix.length()+1);
 			}
 		}
 		
@@ -210,10 +207,11 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 
 		String originalPrefix    = a.getPrefix();
 		String originalLocalName = a.getLocalName();
-		
+		String originalOriginLocalName = a.getOriginLocalName();
 		//Set prefix and local name to prefix and name.
 		a.setPrefix(prefix);
 		a.setLocalName(name);
+		a.setOriginLocalName(originLocalName);
 
 		AttrProcessor processor = processors.lookupAttrProcessor(e, a);
 		if(null != processor){
@@ -223,6 +221,7 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 			//No processor, restore original prefix and local name
 			a.setPrefix(originalPrefix);
 			a.setLocalName(originalLocalName);
+			a.setOriginLocalName(originalOriginLocalName);
 			return false;
 		}
     }
@@ -286,7 +285,7 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
     public HtplTemplate createTemplate(HtplResource resource, String templateName, Locale locale){
 		Args.notNull(resource,"resource");
 		
-		if(resource.reloadable()){
+		if(config.isReloadEnabled() && resource.reloadable()){
 			ReloadableHtplTemplate tpl = null;
 			File file = resource.getFile();
 			
@@ -318,7 +317,7 @@ public class DefaultHtplEngine implements HtplEngine, PostCreateBean {
 					        reloadScheduler = schedulerManager.newFixedThreadPoolScheduler("htpl-reload");
 					    }
 						//Start reload task
-						reloadScheduler.scheduleAtFixedRate(new ReloadTask(), reloadInterval);
+						reloadScheduler.scheduleAtFixedRate(new ReloadTask(), config.getReloadInterval());
 					}
                 }
 			}

@@ -16,6 +16,8 @@
 package leap.web.action;
 
 import leap.lang.Classes;
+import leap.lang.Extensible;
+import leap.lang.ExtensibleBase;
 import leap.lang.Named;
 import leap.lang.accessor.AnnotationsGetter;
 
@@ -23,7 +25,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 
-public interface Action extends Named,AnnotationsGetter {
+public interface Action extends Named,AnnotationsGetter,Extensible {
 	
 	Argument[]			EMPTY_ARGUMENTS	   = new Argument[]{};
 	ActionInterceptor[] EMPTY_INTERCEPTORS = new ActionInterceptor[]{};
@@ -40,9 +42,13 @@ public interface Action extends Named,AnnotationsGetter {
     default Object getController() {
         return null;
     }
+
+    default Class<?> getControllerClass() {
+        return null == getController() ? null : getController().getClass();
+    }
 	
 	default boolean hasReturnValue() {
-		return false;
+		return null != getReturnType();
 	}
 	
 	default boolean hasArguments() {

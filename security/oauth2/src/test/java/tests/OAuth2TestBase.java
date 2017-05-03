@@ -157,32 +157,45 @@ public abstract class OAuth2TestBase extends WebTestBaseContextual implements OA
 
         return resp;
     }
+
+    protected TokenResponse obtainIdTokenTokenImplicit() {
+        String uri = serverContextPath + AUTHZ_ENDPOINT +
+                "?client_id=test&redirect_uri=" + Global.TEST_CLIENT_REDIRECT_URI_ENCODED + "&response_type=id_token%20token";
+
+        login();
+        String redirectUrl = get(uri).assertRedirect().getRedirectUrl();
+
+        QueryString qs = QueryStringParser.parse(Urls.getQueryString(redirectUrl));
+
+        TokenResponse resp = new TokenResponse();
+
+        if(!setErrorResponse(qs.getParameters(), resp)) {
+            setSuccessResponse(qs.getParameters(), resp);
+        }
+
+        return resp;
+    }
     
     protected TokenResponse obtainAccessTokenByPassword(String username, String password) {
-        return obtainAccessTokenByPassword(username,password,Global.TEST_CLIENT_ID);
+        return obtainAccessTokenByPassword(username,password,Global.TEST_CLIENT_ID,Global.TEST_CLIENT_SECRET);
     }
 
-    protected TokenResponse obtainAccessTokenByPassword(String username, String password, String clientId) {
-        String tokenUri = serverContextPath + TOKEN_ENDPOINT +
-                "?grant_type=password&username=" + Urls.encode(username) +
-                "&password=" + Urls.encode(password) +
-                "&client_id=" + Urls.encode(clientId);
+    protected TokenResponse obtainAccessTokenByPassword(String username, String password, String clientId, String clientSecret) {
 
-        return resp(post(tokenUri), new TokenResponse());
+        THttpRequest request = forPost(serverContextPath + TOKEN_ENDPOINT)
+                .addFormParam("grant_type","password")
+                .addFormParam("password",Urls.encode(password))
+                .addFormParam("username",Urls.encode(username))
+                .addHeader("Authorization", "Basic " + Base64.encode(clientId+":"+clientSecret));
+        
+        return resp(request.send(), new TokenResponse());
     }
-
-    protected TokenResponse obtainAccessTokenByTokenClient(String accesstoken, String clientId, String clientSecret){
-        String tokenUri = serverContextPath + TOKEN_ENDPOINT +
-                "?grant_type=token_client&access_token=" + Urls.encode(accesstoken) +
-                "&client_id=" + Urls.encode(clientId) +
-                "&client_secret="+Urls.encode(clientSecret);
-        return resp(post(tokenUri),new TokenResponse());
-    }
+    
     
     protected TokenResponse obtainAccessTokenByClient(String clientId, String clientSecret) {
         String tokenUri = serverContextPath + TOKEN_ENDPOINT; 
         
-        String token = "Basic " + Base64.encode(clientId + ":" + clientSecret);
+        String token = encodeToBasicAuthcHeader(clientId,clientSecret);
 
         THttpRequest request = forPost(tokenUri).addHeader("Authorization",token)
                 .addFormParam("grant_type","client_credentials");
@@ -238,15 +251,14 @@ public abstract class OAuth2TestBase extends WebTestBaseContextual implements OA
         }
     }
     
+    protected String encodeToBasicAuthcHeader(String clientId, String clientSecret){
+        return "Basic " + Base64.encode(clientId+":"+clientSecret);
+    }
+    
     protected TokenInfoResponse obtainAccessTokenInfo(String accessToken) {
         String uri = serverContextPath + TOKENINFO_ENDPOINT + "?access_token=" + accessToken; 
 
         return resp(get(uri), new TokenInfoResponse());
-    }
-    protected JwtTokenResponse obtainAccessTokenInfoWithJwtResponse(String accessToken) {
-        String uri = serverContextPath + TOKENINFO_ENDPOINT + "?access_token=" + accessToken + "&response_type=jwt";
-        JwtTokenResponse token = resp(get(uri), new JwtTokenResponse());
-        return token;
     }
 
     protected TokenInfoResponse testAccessTokenInfo(TokenResponse token) {
@@ -255,11 +267,6 @@ public abstract class OAuth2TestBase extends WebTestBaseContextual implements OA
         assertNotEmpty(info.userId);
         assertEquals(token.expiresIn, info.expiresIn);
         
-        return info;
-    }
-
-    protected JwtTokenResponse testJwtResponseAccessTokenInfo(TokenResponse token){
-        JwtTokenResponse info = obtainAccessTokenInfoWithJwtResponse(token.accessToken);
         return info;
     }
 

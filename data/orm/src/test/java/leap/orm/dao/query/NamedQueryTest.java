@@ -18,7 +18,6 @@ package leap.orm.dao.query;
 import leap.core.annotation.Inject;
 import leap.junit.contexual.Contextual;
 import leap.orm.OrmTestCase;
-import leap.orm.annotation.SqlKey;
 import leap.orm.dao.DaoCommand;
 import leap.orm.query.PageResult;
 import leap.orm.tested.model.file.Directory;
@@ -27,7 +26,6 @@ import leap.orm.tested.model.petclinic.Owner;
 import leap.orm.tested.model.product.Product;
 import org.junit.Test;
 
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 
@@ -105,7 +103,7 @@ public class NamedQueryTest extends OrmTestCase {
 		Directory dir = new Directory();
 		dir.setName("name");
 		dir.setScopeId("scopeId");
-		dao.cmdInsert(Directory.class).setAll(dir).execute();
+		dao.cmdInsert(Directory.class).from(dir).execute();
 		List<File> files = dao.createNamedQuery("queryDirSqlWithResultFile",File.class).list();
 		assertEquals(1,files.size());
 		assertEquals(dir.getScopeId(),files.get(0).getDirectoryId());
@@ -133,8 +131,8 @@ public class NamedQueryTest extends OrmTestCase {
         Map<String, Object> olderFields = older.fields();
         Map<String, Object> newerFields = newer;
 
-        if (db.isMySql()) {
-            //TODO : the mill-seconds problem of mysql
+        if (db.isMySql() || db.isSqlServer()) {
+            //TODO : the mill-seconds problem of mysql and sql server
             olderFields.remove("createdAt");
             newerFields.remove("createdAt");
             olderFields.remove("updatedAt");

@@ -30,7 +30,6 @@ import leap.lang.exception.ObjectExistsException;
 import leap.lang.exception.ObjectNotFoundException;
 import leap.lang.http.QueryStringBuilder;
 import leap.lang.net.Urls;
-import leap.lang.path.Paths;
 import leap.lang.reflect.ReflectClass;
 import leap.lang.reflect.ReflectField;
 import leap.web.App;
@@ -38,6 +37,8 @@ import leap.web.AppInitializable;
 import leap.web.api.annotation.Resource;
 import leap.web.api.annotation.ResourceWrapper;
 import leap.web.api.config.*;
+import leap.web.api.config.model.ApiModelConfig;
+import leap.web.api.config.model.OAuthConfig;
 import leap.web.api.meta.ApiMetadata;
 import leap.web.api.meta.ApiMetadataFactory;
 import leap.web.api.meta.model.MApiResponse;
@@ -57,9 +58,10 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
 	protected Map<String, ApiConfig>       configurations = new ConcurrentHashMap<String, ApiConfig>();
 	protected Map<String, ApiMetadata>     metadatas      = new ConcurrentHashMap<String, ApiMetadata>();
 
-    protected OauthConfig oauthConfig = new OauthConfig(false,null,null);
+    protected OAuthConfig oauthConfig = new OAuthConfig(false,null,null);
 
-    protected Map<String, MApiResponse> commonResponses = new LinkedHashMap<>();
+    protected Map<String, MApiResponse>     commonResponses  = new LinkedHashMap<>();
+    protected Map<Class<?>, ApiModelConfig> commonModelTypes = new LinkedHashMap<>();
 
     @Override
     public ApiConfigurator tryGetConfigurator(String name) {
@@ -110,17 +112,17 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
 	
 	@Override
     public boolean isDefaultOAuthEnabled() {
-        return oauthConfig.isOauthEnabled();
+        return oauthConfig.isEnabled();
     }
 
     @Override
     public String getDefaultOAuthAuthorizationUrl() {
-        return oauthConfig.getOauthAuthzEndpointUrl();
+        return oauthConfig.getAuthzEndpointUrl();
     }
 
     @Override
     public String getDefaultOAuthTokenUrl() {
-        return oauthConfig.getOauthTokenEndpointUrl();
+        return oauthConfig.getTokenEndpointUrl();
     }
 
     @Override
@@ -129,14 +131,19 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
     }
 
     @Override
+    public Map<Class<?>, ApiModelConfig> getCommonModelTypes() {
+        return commonModelTypes;
+    }
+
+    @Override
     public Apis setDefaultOAuthEnabled(boolean enabled) {
-        this.oauthConfig.setOauthEnabled(enabled);
+        oauthConfig.setEnabled(enabled);
         return this;
     }
 
     @Override
     public Apis setDefaultOAuthAuthorizationUrl(String url) {
-        this.oauthConfig.setOauthAuthzEndpointUrl(url);
+        this.oauthConfig.setAuthzEndpointUrl(url);
         return this;
     }
     
@@ -149,58 +156,75 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
           .add("redirect_uri", redirectUri)
           .add("response_type", "token");
         
-        this.oauthConfig.setOauthAuthzEndpointUrl(Urls.appendQueryString(endpoint, qs.build()));
+        this.oauthConfig.setAuthzEndpointUrl(Urls.appendQueryString(endpoint, qs.build()));
         return this;
     }
 
     @Override
     public Apis setDefaultOAuthTokenUrl(String url) {
-        this.oauthConfig.setOauthTokenEndpointUrl(url);
+        this.oauthConfig.setTokenEndpointUrl(url);
         return this;
     }
 
     @Override
     public void postCreate(BeanFactory factory) throws Throwable {
-        ApiConfigExtension extension = factory.getAppConfig().getExtension(ApiConfigExtension.class);
-        if(extension == null){
+        ApiConfigurations configs = factory.getAppConfig().getExtension(ApiConfigurations.class);
+        if(configs == null){
             return;
         }
-        if(extension.getDefaultOauthConfig() != null){
-            this.oauthConfig = extension.getDefaultOauthConfig();
+
+        if(configs.getDefaultOAuthConfig() != null){
+            this.oauthConfig = configs.getDefaultOAuthConfig();
         }
-        extension.getCommonMResponseBuilders().forEach((key,builder)->{
+
+        configs.getCommonResponses().forEach((key, builder)->{
             builder.setTypeManager(typeManager);
             commonResponses.put(key,builder.build());
         });
-        extension.getApiConfigurators().forEach((key, value)->{
-            // TODO
-            if(value.config().getOauthConfig() == null){
-                value.setOAuthConfig(oauthConfig);
+
+        configs.getCommonModelTypes().forEach((t,c) -> {
+            commonModelTypes.put(t,c);
+        });
+
+        configs.getConfigurators().forEach((name, api)->{
+
+            //oauth TODO
+            if(api.config().getOAuthConfig() == null){
+                api.setOAuthConfig(oauthConfig);
             }else{
-                OauthConfig oc = value.config().getOauthConfig();
-                if(Strings.isEmpty(oc.getOauthAuthzEndpointUrl())){
-                    oc.setOauthAuthzEndpointUrl(oauthConfig.getOauthAuthzEndpointUrl());
+                OAuthConfig oc = api.config().getOAuthConfig();
+
+                if(Strings.isEmpty(oc.getAuthzEndpointUrl())){
+                    oc.setAuthzEndpointUrl(oauthConfig.getAuthzEndpointUrl());
                 }
-                if(Strings.isEmpty(oc.getOauthTokenEndpointUrl())){
-                    oc.setOauthTokenEndpointUrl(oauthConfig.getOauthTokenEndpointUrl());
+
+                if(Strings.isEmpty(oc.getTokenEndpointUrl())){
+                    oc.setTokenEndpointUrl(oauthConfig.getTokenEndpointUrl());
                 }
             }
 
-            configurators.put(key.toLowerCase(),value);
-            configurations.put(key.toLowerCase(),value.config());
+            //common model types.
+            commonModelTypes.forEach((t,c) -> {
+                if(!api.config().getModelTypes().containsKey(t)) {
+                    api.putModelType(t, c);
+                }
+            });
+
+            configurators.put(name.toLowerCase(), api);
+            configurations.put(name.toLowerCase(), api.config());
         });
     }
 
     @Override
     public void postAppInit(App app) throws Throwable {
+
 		for(Entry<String, ApiConfigurator> entry : configurators.entrySet()) {
-            ApiConfigurator c = entry.getValue();
-			//do configuration
-			doConfiguration(app, c);
+			doConfiguration(app, entry.getValue());
 		}
+
         for(Entry<String, ApiConfigurator> entry : configurators.entrySet()) {
-            String key = entry.getKey();
             ApiConfigurator c = entry.getValue();
+
             //configure by processors.
             for(ApiConfigProcessor p : configProcessors) {
                 p.preProcess(c);
@@ -210,10 +234,15 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
                 p.postProcess(c.config());
             }
 
-            ApiMetadata m = createMetadata(c);
+            //post config
+            postConfigApi(app, c.config());
+
             //create metadata
+            String key = entry.getKey();
+            ApiMetadata m = createMetadata(c);
             metadatas.put(key, m);
 
+            //post load
             postLoadApi(app, c.config(), m);
         }
 	}
@@ -236,11 +265,10 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
     }
 	
     protected void resolveRoutes(App app, ApiConfigurator c) {
-		String basePath				   = c.config().getBasePath();
-		String basePathSuffixWithSlash = Paths.suffixWithSlash(basePath);
+		String basePath	= c.config().getBasePath();
 		for(Route route : app.routes()) {
 			String pathTemplate = route.getPathTemplate().getTemplate();
-			if(pathTemplate.equals(basePath) || pathTemplate.startsWith(basePathSuffixWithSlash)) {
+			if(pathTemplate.equals(basePath) || pathTemplate.startsWith(basePath)) {
 				
 				if(!c.config().isCorsDisabled() && !route.isCorsDisabled()) {
 					route.setCorsEnabled(true);
@@ -311,11 +339,20 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
         }
     }
 
+    protected void postConfigApi(App app, ApiConfig c) {
+        for(Route route : c.getRoutes()) {
+            if(c.isDefaultAnonymous() && null == route.getAllowAnonymous()) {
+                route.setAllowAnonymous(true);
+            }
+        }
+    }
+
     protected void postLoadApi(App app, ApiConfig c, ApiMetadata m) {
 
         Set<Object> controllers = new HashSet<>();
 
         for(Route route : c.getRoutes()) {
+            //Inject ApiConfig & ApiMetadata.
             Object controller = route.getAction().getController();
             if(null != controller && !controllers.contains(controller)) {
                 controllers.add(controller);
@@ -339,6 +376,8 @@ public class DefaultApis implements Apis, AppInitializable,PostCreateBean {
 
             }
         }
+
+        controllers.clear();
     }
 
 	protected ApiMetadata createMetadata(ApiConfigurator c) {

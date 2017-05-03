@@ -19,6 +19,7 @@ import leap.lang.http.HTTP;
 import leap.web.WebTestCase;
 import leap.web.cors.CorsHandler;
 
+import leap.webunit.client.THttpResponse;
 import org.junit.Test;
 
 public class CorsTestControllerTest extends WebTestCase {
@@ -44,12 +45,29 @@ public class CorsTestControllerTest extends WebTestCase {
 			.send()
 			.assertStatusEquals(HTTP.SC_FORBIDDEN)
 		   	.assertContentEmpty();
-		
-		forGet("/cors_test/enabled")
-			.addHeader(CorsHandler.REQUEST_HEADER_ORIGIN, "http://example.com")
-			.send()
-			.assertHeaderEquals(CorsHandler.RESPONSE_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "http://example.com")
-		   	.assertContentEquals("enabled");		
+
+        THttpResponse resp =
+            forGet("/cors_test/enabled")
+                .addHeader(CorsHandler.REQUEST_HEADER_ORIGIN, "http://example.com")
+                .send().assertOk()
+                .assertHeaderEquals(CorsHandler.RESPONSE_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, "http://example.com")
+                .assertContentEquals("enabled");
+
+        String exposeHeaders = resp.getHeader(CorsHandler.RESPONSE_HEADER_ACCESS_CONTROL_EXPOSE_HEADERS);
+        assertContains(exposeHeaders, "TestCORS");
+        assertContains(exposeHeaders, "Date");
+        assertFalse(exposeHeaders.contains(CorsHandler.RESPONSE_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN));
 	}
-	
+
+    @Test
+    public void testExposedHeaderLargeData() {
+        THttpResponse resp =
+                forGet("/cors_test/large_data")
+                        .addHeader(CorsHandler.REQUEST_HEADER_ORIGIN, "http://example.com")
+                        .send()
+                        .assertOk();
+
+        String exposeHeaders = resp.getHeader(CorsHandler.RESPONSE_HEADER_ACCESS_CONTROL_EXPOSE_HEADERS);
+        assertContains(exposeHeaders, "X-Test-Large-Data");
+    }
 }

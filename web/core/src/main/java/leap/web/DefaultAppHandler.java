@@ -184,7 +184,7 @@ public class DefaultAppHandler extends AppHandlerBase implements AppHandler {
                         } else if (routeState == ROUTE_STATE_NOT_HANDLED) {
 
                             if (webConfig.isCorsEnabled() &&
-                                    webConfig.getCorsHandler().handle(request, response).isIntercepted()) {
+                                    webConfig.getCorsHandler().preHandle(request, response).isIntercepted()) {
 
                                 log.debug("request (no route) handled by cors handler");
 
@@ -344,7 +344,7 @@ public class DefaultAppHandler extends AppHandlerBase implements AppHandler {
                 return false;
             }
 
-            handler.handle(request, response);
+            handler.preHandle(request, response);
             return true;
         }
 
@@ -398,7 +398,7 @@ public class DefaultAppHandler extends AppHandlerBase implements AppHandler {
 
                 //handle cors request.
                 if (route.isCorsEnabled() || (webConfig.isCorsEnabled() && !route.isCorsDisabled())) {
-                    if (webConfig.getCorsHandler().handle(request, response).isIntercepted()) {
+                    if (webConfig.getCorsHandler().preHandle(request, response).isIntercepted()) {
                         log.debug("Request was intercepted by cors handler");
                         return ROUTE_STATE_HANLDED;
                     }
@@ -599,6 +599,9 @@ public class DefaultAppHandler extends AppHandlerBase implements AppHandler {
         if (log.isDebugEnabled()) {
             log.debug("Rendering result : {} , locale : {}", result, request.getLocale());
         }
+
+        //todo : hard code cors exposed headers processing before writing data.
+        webConfig.getCorsHandler().postHandle(request, response);
 
         Renderable renderable = result.getRenderable();
 

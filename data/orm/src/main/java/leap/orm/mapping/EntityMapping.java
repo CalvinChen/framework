@@ -24,6 +24,7 @@ import leap.lang.exception.ObjectNotFoundException;
 import leap.lang.logging.Log;
 import leap.lang.logging.LogFactory;
 import leap.orm.domain.EntityDomain;
+import leap.orm.event.EntityListeners;
 import leap.orm.interceptor.EntityExecutionInterceptor;
 import leap.orm.model.Model;
 import leap.orm.sharding.ShardingAlgorithm;
@@ -62,8 +63,9 @@ public class EntityMapping extends ExtensibleBase {
     protected final ShardingAlgorithm      shardingAlgorithm;
     protected final boolean                selfReferencing;
     protected final RelationMapping[]      selfReferencingRelations;
-	
-	private final Map<String,FieldMapping>    columnNameToFields;
+    protected final EntityListeners        listeners;
+
+    private final Map<String,FieldMapping>    columnNameToFields;
 	private final Map<String,FieldMapping>    fieldNameToFields;
 	private final Map<String,FieldMapping>    metaNameToFields;
     private final Map<String,RelationMapping> nameToRelations;
@@ -71,7 +73,8 @@ public class EntityMapping extends ExtensibleBase {
     private final Map<String,RelationMapping> targetEntityRelations;
     private final Map<String,RelationMapping> referenceToRelations;
     private final FieldMapping                shardingField;
-	
+
+
 	public EntityMapping(String entityName,
                          Class<?> entityClass, DbTable table, List<FieldMapping> fieldMappings,
                          EntityExecutionInterceptor insertInterceptor, EntityExecutionInterceptor updateInterceptor,
@@ -81,11 +84,13 @@ public class EntityMapping extends ExtensibleBase {
                          List<RelationMapping> relationMappings,
                          RelationProperty[] relationProperties,
                          boolean autoCreateTable,
-                         boolean sharding, boolean autoCreateShardingTable, ShardingAlgorithm shardingAlgorithm) {
+                         boolean sharding, boolean autoCreateShardingTable, ShardingAlgorithm shardingAlgorithm,
+                         EntityListeners listeners) {
 		
 		Args.notEmpty(entityName,"entity name");
 		Args.notNull(table,"table");
 		Args.notEmpty(fieldMappings,"field mappings");
+        Args.notNull(listeners);
 
         if(sharding) {
             Args.notNull(shardingAlgorithm, "The sharding algorithm must not be null in sharding entity");
@@ -129,6 +134,8 @@ public class EntityMapping extends ExtensibleBase {
 
         this.selfReferencingRelations = evalSelfReferencingRelations();
         this.selfReferencing = selfReferencingRelations.length > 0;
+
+        this.listeners = listeners;
     }
 
     /**
@@ -469,7 +476,11 @@ public class EntityMapping extends ExtensibleBase {
         return false;
     }
 
-	private FieldMapping[] evalKeyFieldMappings(){
+    public EntityListeners getListeners() {
+        return listeners;
+    }
+
+    private FieldMapping[] evalKeyFieldMappings(){
 		List<FieldMapping> list = New.arrayList();
 		
 		for(FieldMapping fm : this.fieldMappings){

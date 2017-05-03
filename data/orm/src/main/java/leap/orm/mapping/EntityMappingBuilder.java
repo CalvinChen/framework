@@ -19,8 +19,8 @@ import leap.db.model.DbSchemaObjectName;
 import leap.db.model.DbTable;
 import leap.db.model.DbTableBuilder;
 import leap.lang.*;
-import leap.lang.tostring.ToStringBuilder;
 import leap.orm.domain.EntityDomain;
+import leap.orm.event.EntityListenersBuilder;
 import leap.orm.interceptor.EntityExecutionInterceptor;
 import leap.orm.model.Model;
 import leap.orm.sharding.ShardingAlgorithm;
@@ -54,7 +54,8 @@ public class EntityMappingBuilder implements Buildable<EntityMapping> {
     protected boolean                      sharding;
     protected boolean                      autoCreateShardingTable;
     protected ShardingAlgorithm            shardingAlgorithm;
-	
+    protected EntityListenersBuilder       listeners = new EntityListenersBuilder();
+
 	public Class<?> getSourceClass(){
 		return null != entityClass ? entityClass : modelClass;
 	}
@@ -373,6 +374,10 @@ public class EntityMappingBuilder implements Buildable<EntityMapping> {
         return this;
     }
 
+    public EntityListenersBuilder listeners() {
+        return listeners();
+    }
+
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "[entity=" + entityName + "]";
@@ -392,7 +397,8 @@ public class EntityMappingBuilder implements Buildable<EntityMapping> {
                                  relations,
                                  Builders.buildArray(relationProperties, new RelationProperty[0]),
                                  autoCreateTable,
-                                 sharding, autoCreateShardingTable, shardingAlgorithm);
+                                 sharding, autoCreateShardingTable, shardingAlgorithm,
+                                 listeners.build());
     }
 	
 	public DbSchemaObjectName getTableSchemaObjectName() {

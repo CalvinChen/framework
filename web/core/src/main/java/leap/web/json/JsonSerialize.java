@@ -16,7 +16,6 @@
 package leap.web.json;
 
 import leap.lang.enums.Bool;
-import leap.lang.naming.NamingStyle;
 
 import java.lang.annotation.*;
 
@@ -30,6 +29,8 @@ public @interface JsonSerialize {
 	Bool ignoreNull() default Bool.NONE;
 	
 	Bool ignoreEmpty() default Bool.NONE;
+
+	Bool nullToEmptyString() default Bool.FALSE;
 
 	String namingStyle() default "";
 
